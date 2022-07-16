@@ -104,8 +104,68 @@ module NewRelic
           @start_time.to_f..@end_time.to_f
         end
 
+        class TimeRanges
+          def initialize
+            @ranges = []
+          end
+
+          def append(range)
+            # idx points the last element whose begin is less than range's begin.
+            # @ranges:
+            #   |--0--|
+            #            |-- 1 --|
+            #                       |-- 2 --|
+            # range:
+            #               |-- range--|
+            # In this case, it returns 1. Since @ranges has no overlaps,
+            # overlap can happen only with the element or the next.
+            idx = binary_search do |e|
+              e.begin < range.begin
+            end
+            if (target = @ranges[idx])
+              if range.begin < target.end
+                # Overlap happens with at most 1 element.
+                range_max = target.end > range.end ? target.end : range.end
+                @ranges[idx] = target.begin..range_max
+                return
+              end
+            end
+
+            if (target = @ranges[idx + 1])
+              if target.begin < range.end
+                range_max = r.end > range.end ? r.end : range.end
+                @ranges[idx + 1] = range.end..range_max
+              else
+                @ranges[idx + 1].insert(r)
+              end
+            else
+              @ranges.push(range)
+            end
+          end
+
+          def dump_ranges
+            @ranges.dup
+          end
+
+          private
+
+          def binary_search
+            l = 0
+            r = range.size
+            while (r - l) > 1
+              idx = (l + r) / 2
+              if yield @ranges[idx]
+                l = idx
+              else
+                r = idx
+              end
+            end
+            l
+          end
+        end
+
         def children_time_ranges
-          @children_time_ranges ||= []
+          @children_time_ranges ||= TimeRanges.new
         end
 
         def children_time_ranges?
@@ -210,8 +270,7 @@ module NewRelic
         # make any corrections needed for exclusive time calculation.
 
         def descendant_complete child, descendant
-          RangeExtensions.merge_or_append(descendant.time_range,
-            children_time_ranges)
+          children_time_ranges.append(descendant.time_range)
           # If this child's time was previously added to this segment's
           # aggregate children time, we need to re-record it using a time range
           # for proper exclusive time calculation
@@ -257,8 +316,7 @@ module NewRelic
         end
 
         def record_child_time_as_range child
-          RangeExtensions.merge_or_append(child.time_range,
-            children_time_ranges)
+          children_time_ranges.append(child.time_range)
           child.range_recorded = true
         end
 
@@ -268,7 +326,7 @@ module NewRelic
 
         def record_exclusive_duration
           overlapping_duration = if children_time_ranges?
-            RangeExtensions.compute_overlap(time_range, children_time_ranges)
+            RangeExtensions.compute_overlap(time_range, children_time_ranges.dump_ranges)
           else
             0.0
           end
