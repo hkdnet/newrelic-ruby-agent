@@ -23,12 +23,6 @@ module NewRelic
       # merge into an existing range if they intersect, otherwise
       # it will append this range to the end the array.
       def merge_or_append range, ranges
-        ranges.each_with_index do |r, i|
-          if merged = merge(r, range)
-            ranges[i] = merged
-            return ranges
-          end
-        end
         ranges.push(range)
       end
 
