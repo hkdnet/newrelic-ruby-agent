@@ -28,7 +28,7 @@ module Multiverse
       @condition = block
     end
 
-    def strip_leading_spaces content
+    def strip_leading_spaces(content)
       content.split("\n").map(&:strip).join("\n") << "\n"
     end
 
@@ -49,7 +49,7 @@ module Multiverse
       @omit_collector = true
     end
 
-    def instrumentation_methods *args
+    def instrumentation_methods(*args)
       @instrumentation_permutations = args.map(&:to_s)
     end
 
